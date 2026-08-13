@@ -1,0 +1,172 @@
+import React from 'react';
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Shuffle,
+  ListMusic
+} from 'lucide-react';
+
+export default function FloatingPlayer({
+  currentTrack,
+  isPlaying,
+  currentTime,
+  duration,
+  isShuffle,
+  onTogglePlayPause,
+  onNext,
+  onPrevious,
+  onSeek,
+  onToggleShuffle,
+  onOpenPlaylist
+}) {
+  const formatTime = (secs) => {
+    if (isNaN(secs) || secs < 0) return '0:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const totalTimeStr = formatTime(duration || currentTrack.durationSec || 225);
+  const currentTimeStr = formatTime(currentTime);
+
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-3xl transition-all duration-300">
+      
+      {/* PILL SHAPED GLASS CONTAINER */}
+      <div className="glass-panel px-5 py-3.5 sm:px-7 sm:py-4 rounded-[40px] shadow-2xl border border-white/20 bg-black/40 backdrop-blur-2xl flex items-center justify-between gap-4 sm:gap-8">
+        
+        {/* LEFT SECTION: CIRCULAR ALBUM COVER + TITLE + PROGRESS BAR + TIMESTAMPS */}
+        <div className="flex items-center gap-4 min-w-0 flex-1">
+          
+          {/* Circular Vinyl Cover */}
+          <div
+            onClick={onOpenPlaylist}
+            className="relative flex-shrink-0 cursor-pointer group"
+            title="Click to view playlist"
+          >
+            <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full border border-white/30 overflow-hidden shadow-lg bg-black/60 transition-transform ${isPlaying ? 'animate-vinyl-spin' : ''}`}>
+              <img
+                src={currentTrack.cover}
+                alt={currentTrack.title}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%23111' stroke='%23fff' stroke-width='3'/%3E%3Ccircle cx='50' cy='50' r='18' fill='%23D49A32'/%3E%3Ccircle cx='50' cy='50' r='5' fill='%23111'/%3E%3C/svg%3E";
+                }}
+              />
+            </div>
+            {/* Center vinyl pin */}
+            <div className="absolute inset-0 m-auto w-3 h-3 rounded-full bg-black border border-white/60"></div>
+          </div>
+
+          {/* Song Meta + Inline Progress Bar + Timestamp */}
+          <div className="min-w-0 flex-1 flex flex-col justify-center gap-0.5">
+            <h4 className="text-sm sm:text-base font-bold text-white tracking-wide truncate font-sans">
+              {currentTrack.title}
+            </h4>
+            <p className="text-xs sm:text-sm text-white/75 truncate font-medium">
+              {currentTrack.artist}
+            </p>
+
+            {/* GENEROUS EASY-CLICK PROGRESS BAR WITH GLOWING SEEK KNOB & DRAG SUPPORT */}
+            <div className="relative w-full py-2 cursor-pointer group flex items-center select-none my-0.5">
+              {/* Track background line */}
+              <div className="w-full h-1.5 group-hover:h-2.5 bg-white/20 group-hover:bg-white/30 rounded-full transition-all overflow-hidden relative">
+                {/* Filled progress bar */}
+                <div
+                  className="h-full bg-gradient-to-r from-[#D49A32] via-[#E8B85C] to-[#F5E6C8] rounded-full transition-all"
+                  style={{ width: `${Math.min(100, Math.max(0, ((currentTime / (duration || 1)) * 100)))}%` }}
+                ></div>
+              </div>
+
+              {/* Glowing Seek Knob / Thumb Indicator */}
+              <div
+                className="absolute w-3.5 h-3.5 rounded-full bg-[#F5E6C8] border-2 border-[#D49A32] shadow-lg shadow-[#D49A32]/60 pointer-events-none transform -translate-x-1/2 transition-all opacity-80 group-hover:opacity-100 group-hover:scale-125"
+                style={{ left: `${Math.min(100, Math.max(0, ((currentTime / (duration || 1)) * 100)))}%` }}
+              ></div>
+
+              {/* Hidden Range Input for full accessibility, drag, & effortless clicks */}
+              <input
+                type="range"
+                min="0"
+                max={duration || 200}
+                step="0.1"
+                value={currentTime || 0}
+                onChange={(e) => onSeek(parseFloat(e.target.value))}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                title="Click or drag to change song position"
+              />
+            </div>
+
+            {/* TIMESTAMPS: 0:01 / 5:14 */}
+            <div className="text-[11px] font-sans font-semibold text-[#F5E6C8]/80 tracking-wider flex items-center justify-between">
+              <span>{currentTimeStr}</span>
+              <span>{totalTimeStr}</span>
+            </div>
+          </div>
+
+        </div>
+
+        {/* RIGHT SECTION: CONTROLS (SHUFFLE BUBBLE, PREV, WHITE SOLID PLAY CIRCLE, NEXT, PLAYLIST) */}
+        <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+          
+          {/* Shuffle Button in Translucent Glass Bubble */}
+          <button
+            onClick={onToggleShuffle}
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all ${
+              isShuffle ? 'bg-white text-black shadow-md' : 'bg-white/15 text-white hover:bg-white/25'
+            }`}
+            title={`Shuffle: ${isShuffle ? 'ON' : 'OFF'}`}
+          >
+            <Shuffle className="w-4 h-4" />
+          </button>
+
+          {/* Previous Track */}
+          <button
+            onClick={onPrevious}
+            className="p-1.5 text-white/80 hover:text-white hover:scale-110 transition-all"
+            title="Previous Track"
+          >
+            <SkipBack className="w-5 h-5 fill-current" />
+          </button>
+
+          {/* MAIN SOLID WHITE CIRCULAR PLAY / PAUSE BUTTON */}
+          <button
+            onClick={onTogglePlayPause}
+            className="w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-white text-black flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all"
+            title={isPlaying ? 'Pause' : 'Play'}
+          >
+            {isPlaying ? (
+              <Pause className="w-5 h-5 sm:w-6 sm:h-6 fill-current text-black" />
+            ) : (
+              <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-current text-black ml-0.5" />
+            )}
+          </button>
+
+          {/* Next Track */}
+          <button
+            onClick={onNext}
+            className="p-1.5 text-white/80 hover:text-white hover:scale-110 transition-all"
+            title="Next Track"
+          >
+            <SkipForward className="w-5 h-5 fill-current" />
+          </button>
+
+          {/* Playlist Drawer Button */}
+          <button
+            onClick={onOpenPlaylist}
+            className="p-1.5 text-white/80 hover:text-white hover:scale-110 transition-all"
+            title="Open Playlist"
+          >
+            <ListMusic className="w-5 h-5" />
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+  );
+}
