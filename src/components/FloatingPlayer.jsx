@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   Play,
   Pause,
@@ -30,6 +30,59 @@ export default function FloatingPlayer({
 
   const totalTimeStr = formatTime(duration || currentTrack.durationSec || 225);
   const currentTimeStr = formatTime(currentTime);
+
+  // Improved pointer-based seeking with drag support and pointer capture
+  const progressRef = useRef(null);
+  const draggingRef = useRef(false);
+
+  const seekAtEvent = (clientX) => {
+    if (!progressRef.current) return;
+    const rect = progressRef.current.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const pct = Math.min(1, Math.max(0, x / rect.width));
+    const maxDuration = duration || currentTrack.durationSec || 200;
+    const newTime = pct * maxDuration;
+    onSeek(newTime);
+  };
+
+  const handlePointerDown = (e) => {
+    try {
+      e.preventDefault();
+      if (progressRef.current && e.pointerId != null && progressRef.current.setPointerCapture) {
+        progressRef.current.setPointerCapture(e.pointerId);
+      }
+      draggingRef.current = true;
+      seekAtEvent(e.clientX);
+      window.addEventListener('pointermove', handlePointerMove);
+      window.addEventListener('pointerup', handlePointerUp);
+    } catch (err) {
+      // ignore
+    }
+  };
+
+  const handlePointerMove = (e) => {
+    if (!draggingRef.current) return;
+    seekAtEvent(e.clientX);
+  };
+
+  const handlePointerUp = (e) => {
+    try {
+      draggingRef.current = false;
+      if (progressRef.current && e.pointerId != null && progressRef.current.releasePointerCapture) {
+        try { progressRef.current.releasePointerCapture(e.pointerId); } catch(_) {}
+      }
+    } finally {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, []);
 
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-3xl transition-all duration-300">
@@ -71,7 +124,12 @@ export default function FloatingPlayer({
             </p>
 
             {/* GENEROUS EASY-CLICK PROGRESS BAR WITH GLOWING SEEK KNOB & DRAG SUPPORT */}
-            <div className="relative w-full py-2 cursor-pointer group flex items-center select-none my-0.5">
+            <div
+              ref={progressRef}
+              style={{ touchAction: 'none' }}
+              className="relative w-full py-2 cursor-pointer group flex items-center select-none my-0.5"
+              onPointerDown={handlePointerDown}
+            >
               {/* Track background line */}
               <div className="w-full h-1.5 group-hover:h-2.5 bg-white/20 group-hover:bg-white/30 rounded-full transition-all overflow-hidden relative">
                 {/* Filled progress bar */}
