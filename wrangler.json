@@ -1,7 +1,5 @@
 {
   "name": "kk",
-  "assets": {
-    "directory": "./dist"
-  },
+  "pages_build_output_dir": "./dist",
   "compatibility_date": "2025-04-01"
 }
