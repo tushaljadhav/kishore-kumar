@@ -123,39 +123,27 @@ export default function FloatingPlayer({
               {currentTrack.artist}
             </p>
 
-            {/* GENEROUS EASY-CLICK PROGRESS BAR WITH GLOWING SEEK KNOB & DRAG SUPPORT */}
+            {/* PROGRESS BAR WITH CLICK + DRAG SUPPORT */}
             <div
               ref={progressRef}
               style={{ touchAction: 'none' }}
-              className="relative w-full py-2 cursor-pointer group flex items-center select-none my-0.5"
+              className="relative w-full py-3 cursor-pointer group flex items-center select-none my-0.5"
               onPointerDown={handlePointerDown}
             >
               {/* Track background line */}
               <div className="w-full h-1.5 group-hover:h-2.5 bg-white/20 group-hover:bg-white/30 rounded-full transition-all overflow-hidden relative">
                 {/* Filled progress bar */}
                 <div
-                  className="h-full bg-gradient-to-r from-[#D49A32] via-[#E8B85C] to-[#F5E6C8] rounded-full transition-all"
-                  style={{ width: `${Math.min(100, Math.max(0, ((currentTime / (duration || 1)) * 100)))}%` }}
+                  className="h-full bg-gradient-to-r from-[#D49A32] via-[#E8B85C] to-[#F5E6C8] rounded-full transition-[width] duration-100"
+                  style={{ width: `${duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0}%` }}
                 ></div>
               </div>
 
               {/* Glowing Seek Knob / Thumb Indicator */}
               <div
-                className="absolute w-3.5 h-3.5 rounded-full bg-[#F5E6C8] border-2 border-[#D49A32] shadow-lg shadow-[#D49A32]/60 pointer-events-none transform -translate-x-1/2 transition-all opacity-80 group-hover:opacity-100 group-hover:scale-125"
-                style={{ left: `${Math.min(100, Math.max(0, ((currentTime / (duration || 1)) * 100)))}%` }}
+                className="absolute w-4 h-4 rounded-full bg-[#F5E6C8] border-2 border-[#D49A32] shadow-lg shadow-[#D49A32]/60 pointer-events-none transform -translate-x-1/2 transition-opacity opacity-80 group-hover:opacity-100 group-hover:scale-125"
+                style={{ left: `${duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0}%` }}
               ></div>
-
-              {/* Hidden Range Input for full accessibility, drag, & effortless clicks */}
-              <input
-                type="range"
-                min="0"
-                max={duration || 200}
-                step="0.1"
-                value={currentTime || 0}
-                onChange={(e) => onSeek(parseFloat(e.target.value))}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                title="Click or drag to change song position"
-              />
             </div>
 
             {/* TIMESTAMPS: 0:01 / 5:14 */}

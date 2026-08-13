@@ -279,10 +279,28 @@ export function useAudioPlayer() {
 
   // Seek
   const seekTo = useCallback((seconds) => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = seconds;
-      setCurrentTime(seconds);
+    if (!audioRef.current) return;
+    const audio = audioRef.current;
+    const clampedTime = Math.max(0, Math.min(seconds, audio.duration || Infinity));
+    
+    // readyState >= 1 means metadata is loaded and seeking is safe
+    if (audio.readyState >= 1) {
+      try {
+        audio.currentTime = clampedTime;
+      } catch (e) {
+        // Some browsers throw on invalid seeks — ignore
+      }
+    } else {
+      // Audio not ready yet — wait for metadata then seek
+      const onReady = () => {
+        try {
+          audio.currentTime = Math.min(clampedTime, audio.duration || clampedTime);
+        } catch (e) {}
+        audio.removeEventListener('loadedmetadata', onReady);
+      };
+      audio.addEventListener('loadedmetadata', onReady);
     }
+    setCurrentTime(clampedTime);
   }, []);
 
   // Set Volume
