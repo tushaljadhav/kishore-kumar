@@ -3,11 +3,26 @@ import glob
 import shutil
 
 # Search locations for recently created image files
+import os
+
+# Prefer the new folder name 'kishore kumar' but fall back to 'kishor kumar' if present.
+home = os.path.expanduser('~')
+preferred_folder = os.path.join(home, 'kishore kumar')
+legacy_folder = os.path.join(home, 'kishor kumar')
+
 search_dirs = [
-    r"C:\Users\Tushal\.gemini\antigravity-ide\brain\7f95d476-34b6-438c-a9b7-9a87a9a69a7c",
-    r"C:\Users\Tushal\.gemini\antigravity-ide",
-    r"c:\Users\Tushal\kishor kumar"
+    os.path.join(home, '.gemini', 'antigravity-ide', 'brain', '7f95d476-34b6-438c-a9b7-9a87a9a69a7c'),
+    os.path.join(home, '.gemini', 'antigravity-ide'),
 ]
+
+# Add whichever user folder exists (preferred first)
+if os.path.exists(preferred_folder):
+    search_dirs.append(preferred_folder)
+elif os.path.exists(legacy_folder):
+    search_dirs.append(legacy_folder)
+else:
+    # add preferred as fallback (will simply not be found if missing)
+    search_dirs.append(preferred_folder)
 
 all_imgs = []
 for d in search_dirs:
@@ -24,7 +39,16 @@ print("Recent images found:")
 for img in all_imgs[:10]:
     print(f"{img[0]} | Size: {img[2]} bytes | Time: {img[1]}")
 
-dest = r"c:\Users\Tushal\kishor kumar\public\assets\hero-bg.jpg"
+# Determine destination path based on detected folder
+detected_home_folder = None
+if os.path.exists(preferred_folder):
+    detected_home_folder = preferred_folder
+elif os.path.exists(legacy_folder):
+    detected_home_folder = legacy_folder
+else:
+    detected_home_folder = preferred_folder
+
+dest = os.path.join(detected_home_folder, 'public', 'assets', 'hero-bg.jpg')
 os.makedirs(os.path.dirname(dest), exist_ok=True)
 
 if all_imgs:
