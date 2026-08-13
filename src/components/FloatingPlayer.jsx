@@ -85,10 +85,10 @@ export default function FloatingPlayer({
   }, []);
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-3xl transition-all duration-300">
+    <div className="fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 w-[96%] sm:w-[95%] max-w-3xl transition-all duration-300">
       
       {/* PILL SHAPED GLASS CONTAINER */}
-      <div className="glass-panel px-5 py-3.5 sm:px-7 sm:py-4 rounded-[40px] shadow-2xl border border-white/20 bg-black/40 backdrop-blur-2xl flex items-center justify-between gap-4 sm:gap-8">
+      <div className="glass-panel px-3 py-2.5 sm:px-5 sm:py-3.5 md:px-7 md:py-4 rounded-[28px] sm:rounded-[40px] shadow-2xl border border-white/20 bg-black/40 backdrop-blur-2xl flex items-center justify-between gap-2 sm:gap-4 md:gap-8">
         
         {/* LEFT SECTION: CIRCULAR ALBUM COVER + TITLE + PROGRESS BAR + TIMESTAMPS */}
         <div className="flex items-center gap-4 min-w-0 flex-1">
@@ -99,7 +99,7 @@ export default function FloatingPlayer({
             className="relative flex-shrink-0 cursor-pointer group"
             title="Click to view playlist"
           >
-            <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full border border-white/30 overflow-hidden shadow-lg bg-black/60 transition-transform ${isPlaying ? 'animate-vinyl-spin' : ''}`}>
+            <div className={`w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 rounded-full border border-white/30 overflow-hidden shadow-lg bg-black/60 transition-transform ${isPlaying ? 'animate-vinyl-spin' : ''}`}>
               <img
                 src={currentTrack.cover}
                 alt={currentTrack.title}
@@ -111,15 +111,15 @@ export default function FloatingPlayer({
               />
             </div>
             {/* Center vinyl pin */}
-            <div className="absolute inset-0 m-auto w-3 h-3 rounded-full bg-black border border-white/60"></div>
+            <div className="absolute inset-0 m-auto w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-black border border-white/60"></div>
           </div>
 
           {/* Song Meta + Inline Progress Bar + Timestamp */}
           <div className="min-w-0 flex-1 flex flex-col justify-center gap-0.5">
-            <h4 className="text-sm sm:text-base font-bold text-white tracking-wide truncate font-sans">
+            <h4 className="text-xs sm:text-sm md:text-base font-bold text-white tracking-wide truncate font-sans">
               {currentTrack.title}
             </h4>
-            <p className="text-xs sm:text-sm text-white/75 truncate font-medium">
+            <p className="text-[10px] sm:text-xs md:text-sm text-white/75 truncate font-medium">
               {currentTrack.artist}
             </p>
 
@@ -156,12 +156,12 @@ export default function FloatingPlayer({
         </div>
 
         {/* RIGHT SECTION: CONTROLS (SHUFFLE BUBBLE, PREV, WHITE SOLID PLAY CIRCLE, NEXT, PLAYLIST) */}
-        <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 md:gap-4 flex-shrink-0">
           
           {/* Shuffle Button in Translucent Glass Bubble */}
           <button
             onClick={onToggleShuffle}
-            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all ${
+            className={`w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center transition-all ${
               isShuffle ? 'bg-white text-black shadow-md' : 'bg-white/15 text-white hover:bg-white/25'
             }`}
             title={`Shuffle: ${isShuffle ? 'ON' : 'OFF'}`}
@@ -181,13 +181,13 @@ export default function FloatingPlayer({
           {/* MAIN SOLID WHITE CIRCULAR PLAY / PAUSE BUTTON */}
           <button
             onClick={onTogglePlayPause}
-            className="w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-white text-black flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all"
+            className="w-10 h-10 sm:w-11 sm:h-11 md:w-13 md:h-13 rounded-full bg-white text-black flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all"
             title={isPlaying ? 'Pause' : 'Play'}
           >
             {isPlaying ? (
-              <Pause className="w-5 h-5 sm:w-6 sm:h-6 fill-current text-black" />
+              <Pause className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 fill-current text-black" />
             ) : (
-              <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-current text-black ml-0.5" />
+              <Play className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 fill-current text-black ml-0.5" />
             )}
           </button>
 

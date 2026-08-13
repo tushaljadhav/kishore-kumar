@@ -72,7 +72,7 @@ export function useAudioPlayer() {
   // Initialize HTML5 Audio Element ONCE
   useEffect(() => {
     const audio = new Audio();
-    audio.preload = 'metadata'; // Performance: only load metadata into memory
+    audio.preload = 'auto'; // Performance: only load metadata into memory
     audioRef.current = audio;
 
     const handleTimeUpdate = () => {
@@ -115,6 +115,13 @@ export function useAudioPlayer() {
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('error', handleError);
 
+    // Eagerly load initial track for fast first play
+    const initialTrack = playlist[currentTrackIndex];
+    if (initialTrack && initialTrack.audio) {
+      audio.src = initialTrack.audio;
+      audio.load();
+    }
+
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
@@ -131,7 +138,7 @@ export function useAudioPlayer() {
     
     audio.pause();
     audio.src = currentTrack.audio;
-    audio.preload = 'metadata';
+    audio.preload = 'auto';
     audio.volume = isMuted ? 0 : volume;
     setCurrentTime(0);
     setAudioError(null);
