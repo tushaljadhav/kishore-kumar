@@ -336,11 +336,22 @@ export function useAudioPlayer() {
     audio.preload = 'auto';
     audioRef.current = audio;
 
+    const onPlay = () => {
+      setIsPlaying(true);
+      isPlayingRef.current = true;
+    };
+    const onPause = () => {
+      setIsPlaying(false);
+      isPlayingRef.current = false;
+    };
     const onTimeUpdate = () => handleTimeUpdateRef.current?.();
     const onLoadedMetadata = () => handleLoadedMetadataRef.current?.();
     const onEnded = () => handleEndedRef.current?.();
     const onError = (e) => handleErrorRef.current?.(e);
 
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('playing', onPlay);
+    audio.addEventListener('pause', onPause);
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('loadedmetadata', onLoadedMetadata);
     audio.addEventListener('ended', onEnded);
@@ -354,6 +365,9 @@ export function useAudioPlayer() {
     }
 
     return () => {
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('playing', onPlay);
+      audio.removeEventListener('pause', onPause);
       audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('loadedmetadata', onLoadedMetadata);
       audio.removeEventListener('ended', onEnded);
@@ -362,58 +376,43 @@ export function useAudioPlayer() {
     };
   }, []);
 
-  // Play / Pause Toggle
+  // Bulletproof Play / Pause Toggle using audio.paused
   const togglePlayPause = useCallback(() => {
     setUserInteracted(true);
-    setupAudioContext();
-
-    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-      audioCtxRef.current.resume().catch(() => {});
-    }
-
     const audio = audioRef.current;
     if (!audio) return;
 
-    if (isPlaying) {
+    if (!audio.src || audio.src === '' || audio.src.endsWith('/')) {
+      const curTrack = playlist[currentTrackIndexRef.current] || playlist[0];
+      if (curTrack && curTrack.audio) {
+        audio.src = curTrack.audio;
+        audio.load();
+      }
+    }
+
+    if (!audio.paused) {
       audio.pause();
-      setIsPlaying(false);
-      isPlayingRef.current = false;
     } else {
-      console.log('[Audio Player] play() called from togglePlayPause');
       const playPromise = audio.play();
       if (playPromise !== undefined) {
         playPromise
           .then(() => {
-            console.log('[Audio Player] play() resolved successfully');
-            setIsPlaying(true);
-            isPlayingRef.current = true;
             setAudioError(null);
           })
           .catch((err) => {
-            // Ignore AbortError when user pauses/toggles quickly while loading
-            if (err.name === 'AbortError') {
-              console.log('[Audio Player] Play promise aborted (normal on user toggle)');
-              return;
-            }
-            if (err.name === 'NotAllowedError') {
-              console.warn('[Audio Player] Autoplay policy blocked.');
-              setIsPlaying(false);
-              isPlayingRef.current = false;
-              return;
-            }
-            console.error('[Audio Player] togglePlayPause error:', err);
-            const curIdx = currentTrackIndexRef.current;
-            const track = playlist[curIdx] || playlist[0];
-            setAudioError(`Audio playback failed: "${track?.title}"`);
-            setIsPlaying(false);
-            isPlayingRef.current = false;
+            if (err.name === 'AbortError' || err.name === 'NotAllowedError') return;
+            // Retry once with fresh load
+            audio.load();
+            audio.play().catch((e) => {
+              if (e.name === 'AbortError' || e.name === 'NotAllowedError') return;
+              const curIdx = currentTrackIndexRef.current;
+              const track = playlist[curIdx] || playlist[0];
+              setAudioError(`Audio playback failed: "${track?.title}"`);
+            });
           });
-      } else {
-        setIsPlaying(true);
-        isPlayingRef.current = true;
       }
     }
-  }, [isPlaying, setupAudioContext]);
+  }, []);
 
   // Play specific track index or toggle play/pause if already active
   const playTrack = useCallback((index) => {
