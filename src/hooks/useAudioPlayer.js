@@ -162,6 +162,7 @@ export function useAudioPlayer() {
     audio.currentTime = 0;
     audio.src = nextTrack.audio;
     audio.preload = 'auto';
+    audio.load();
     audio.volume = isMutedRef.current ? 0 : volumeRef.current;
     console.log(`[Audio Player] 3. src set to: ${nextTrack.audio}`);
 
@@ -191,6 +192,17 @@ export function useAudioPlayer() {
             setAudioError(null);
           })
           .catch((err) => {
+            // Ignore AbortError caused when user pauses or skips while loading
+            if (err.name === 'AbortError') {
+              console.log('[Audio Player] Play aborted by pause/skip action');
+              return;
+            }
+            if (err.name === 'NotAllowedError') {
+              console.warn('[Audio Player] Autoplay policy blocked.');
+              setIsPlaying(false);
+              isPlayingRef.current = false;
+              return;
+            }
             console.error('[Audio Player] 5. play() rejected:', err);
             setAudioError(`Audio file unavailable or blocked: "${nextTrack.title}"`);
             setIsPlaying(false);
@@ -297,6 +309,11 @@ export function useAudioPlayer() {
 
   // Audio 'error' event handler
   const handleError = useCallback((e) => {
+    const audio = audioRef.current;
+    if (audio && audio.error) {
+      // code 1: MEDIA_ERR_ABORTED - fetching process aborted by user (pause, new load)
+      if (audio.error.code === 1) return;
+    }
     const curIdx = currentTrackIndexRef.current;
     const track = playlist[curIdx] || playlist[0];
     console.error(`[Audio Manager] Audio element error for "${track?.title}":`, e);
@@ -362,18 +379,29 @@ export function useAudioPlayer() {
       setIsPlaying(false);
       isPlayingRef.current = false;
     } else {
-      console.log('[Audio Player] 4. play() called from togglePlayPause');
+      console.log('[Audio Player] play() called from togglePlayPause');
       const playPromise = audio.play();
       if (playPromise !== undefined) {
         playPromise
           .then(() => {
-            console.log('[Audio Player] 5. play() resolved successfully');
+            console.log('[Audio Player] play() resolved successfully');
             setIsPlaying(true);
             isPlayingRef.current = true;
             setAudioError(null);
           })
           .catch((err) => {
-            console.error('[Audio Player] 5. play() rejected:', err);
+            // Ignore AbortError when user pauses/toggles quickly while loading
+            if (err.name === 'AbortError') {
+              console.log('[Audio Player] Play promise aborted (normal on user toggle)');
+              return;
+            }
+            if (err.name === 'NotAllowedError') {
+              console.warn('[Audio Player] Autoplay policy blocked.');
+              setIsPlaying(false);
+              isPlayingRef.current = false;
+              return;
+            }
+            console.error('[Audio Player] togglePlayPause error:', err);
             const curIdx = currentTrackIndexRef.current;
             const track = playlist[curIdx] || playlist[0];
             setAudioError(`Audio playback failed: "${track?.title}"`);
