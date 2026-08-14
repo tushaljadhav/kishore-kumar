@@ -22,7 +22,7 @@ export function useAudioPlayer() {
 
   const [isPlaying, setIsPlaying] = useState(false);
 
-  // Restore last played timestamp from localStorage
+  // Restore last played timestamp from localStorage (only for initial state)
   const [currentTime, setCurrentTime] = useState(() => {
     try {
       const stored = localStorage.getItem(LAST_POSITION_STORAGE_KEY);
@@ -42,13 +42,7 @@ export function useAudioPlayer() {
   const [isShuffle, setIsShuffle] = useState(false);
   const [repeatMode, setRepeatMode] = useState('playlist'); // 'off' | 'track' | 'playlist'
   const [audioError, setAudioError] = useState(null);
-
-  // Save currentTrackIndex to localStorage whenever it changes
-  useEffect(() => {
-    try {
-      localStorage.setItem(LAST_TRACK_STORAGE_KEY, currentTrackIndex.toString());
-    } catch (e) {}
-  }, [currentTrackIndex]);
+  const [userInteracted, setUserInteracted] = useState(false);
 
   // Favorites stored in localStorage under 'kishore-favorites'
   const [favorites, setFavorites] = useState(() => {
@@ -60,129 +54,63 @@ export function useAudioPlayer() {
     }
   });
 
-  const [userInteracted, setUserInteracted] = useState(false);
-  
-  // Single Audio object instance
+  // Single Audio object instance and Web Audio API refs
   const audioRef = useRef(null);
   const audioCtxRef = useRef(null);
   const analyserRef = useRef(null);
 
-  const currentTrack = playlist[currentTrackIndex] || playlist[0];
+  // State synchronization refs to prevent stale closures in audio event listeners
+  const currentTrackIndexRef = useRef(currentTrackIndex);
+  const isPlayingRef = useRef(isPlaying);
+  const repeatModeRef = useRef(repeatMode);
+  const isShuffleRef = useRef(isShuffle);
+  const volumeRef = useRef(volume);
+  const isMutedRef = useRef(isMuted);
 
-  // Initialize HTML5 Audio Element ONCE
+  // Guard ref so saved position from previous song is ONLY restored on initial page load, NEVER on track changes
+  const initialPositionRestoredRef = useRef(false);
+
+  // Keep refs synchronized with state on every render
   useEffect(() => {
-    const audio = new Audio();
-    audio.preload = 'auto'; // Performance: only load metadata into memory
-    audioRef.current = audio;
-
-    const handleTimeUpdate = () => {
-      const curTime = audio.currentTime || 0;
-      setCurrentTime(curTime);
-      try {
-        localStorage.setItem(LAST_POSITION_STORAGE_KEY, curTime.toString());
-      } catch (e) {}
-    };
-
-    const handleLoadedMetadata = () => {
-      setDuration(audio.duration || 200);
-      setAudioError(null);
-
-      // Restore saved playback position if available
-      try {
-        const storedPos = localStorage.getItem(LAST_POSITION_STORAGE_KEY);
-        if (storedPos !== null) {
-          const pos = parseFloat(storedPos);
-          if (!isNaN(pos) && pos > 0 && pos < audio.duration) {
-            audio.currentTime = pos;
-          }
-        }
-      } catch (e) {}
-    };
-
-    const handleEnded = () => {
-      handleNextTrack();
-    };
-
-    const handleError = (e) => {
-      const trackName = playlist[currentTrackIndex]?.title || 'Selected Track';
-      console.error(`[Audio Manager] File unavailable: ${playlist[currentTrackIndex]?.audio}`, e);
-      setAudioError(`Audio file unavailable: "${trackName}"`);
-      setIsPlaying(false);
-    };
-
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('ended', handleEnded);
-    audio.addEventListener('error', handleError);
-
-    // Eagerly load initial track for fast first play
-    const initialTrack = playlist[currentTrackIndex];
-    if (initialTrack && initialTrack.audio) {
-      audio.src = initialTrack.audio;
-      audio.load();
-    }
-
-    return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('ended', handleEnded);
-      audio.removeEventListener('error', handleError);
-      audio.pause();
-    };
-  }, []);
-
-  // Update track source when currentTrackIndex changes
-  useEffect(() => {
-    if (!audioRef.current || !currentTrack) return;
-    const audio = audioRef.current;
-    
-    audio.pause();
-    audio.src = currentTrack.audio;
-    audio.preload = 'auto';
-    audio.volume = isMuted ? 0 : volume;
-    setCurrentTime(0);
-    setAudioError(null);
-
-    // Preload next track metadata for fast transitions
-    const nextIndex = (currentTrackIndex + 1) % playlist.length;
-    const nextTrack = playlist[nextIndex];
-    if (nextTrack && nextTrack.audio) {
-      const nextPreload = new Audio();
-      nextPreload.src = nextTrack.audio;
-      nextPreload.preload = 'metadata';
-    }
-
-    if (isPlaying) {
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((err) => {
-          console.warn('[Audio Manager] Playback deferred or file missing:', err.message);
-        });
-      }
-    }
+    currentTrackIndexRef.current = currentTrackIndex;
+    try {
+      localStorage.setItem(LAST_TRACK_STORAGE_KEY, currentTrackIndex.toString());
+    } catch (e) {}
   }, [currentTrackIndex]);
 
-  // Volume & Mute listener
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume;
-    }
-  }, [volume, isMuted]);
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
-  // Save Favorites to localStorage
-  const toggleFavorite = useCallback((songId) => {
-    setFavorites((prev) => {
-      const updated = prev.includes(songId)
-        ? prev.filter((id) => id !== songId)
-        : [...prev, songId];
-      try {
-        localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(updated));
-      } catch (e) {
-        console.warn('localStorage error:', e);
-      }
-      return updated;
-    });
-  }, []);
+  useEffect(() => {
+    repeatModeRef.current = repeatMode;
+  }, [repeatMode]);
+
+  useEffect(() => {
+    isShuffleRef.current = isShuffle;
+  }, [isShuffle]);
+
+  useEffect(() => {
+    volumeRef.current = volume;
+    if (audioRef.current) {
+      audioRef.current.volume = isMutedRef.current ? 0 : volume;
+    }
+  }, [volume]);
+
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+    if (audioRef.current) {
+      audioRef.current.volume = isMuted ? 0 : volumeRef.current;
+    }
+  }, [isMuted]);
+
+  const currentTrack = playlist[currentTrackIndex] || playlist[0];
+
+  // Callback refs to break stale closure in permanent event listeners
+  const handleEndedRef = useRef(null);
+  const handleLoadedMetadataRef = useRef(null);
+  const handleTimeUpdateRef = useRef(null);
+  const handleErrorRef = useRef(null);
 
   // Setup Web Audio Analyser
   const setupAudioContext = useCallback(() => {
@@ -204,8 +132,217 @@ export function useAudioPlayer() {
       audioCtxRef.current = ctx;
       analyserRef.current = analyser;
     } catch (err) {
-      console.warn("Web Audio API info:", err.message);
+      console.warn('[Audio Manager] Web Audio API info:', err.message);
     }
+  }, []);
+
+  // Core track switcher: updates src, resets position, and immediately initiates playback
+  const changeTrack = useCallback((newIndex, shouldPlay = true) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (newIndex < 0 || newIndex >= playlist.length) {
+      console.warn(`[Audio Player] Invalid track index: ${newIndex}`);
+      return;
+    }
+
+    const nextTrack = playlist[newIndex];
+    console.log(`[Audio Player] 2. next index calculated: ${newIndex} ("${nextTrack.title}")`);
+
+    currentTrackIndexRef.current = newIndex;
+    setCurrentTrackIndex(newIndex);
+    setCurrentTime(0);
+    setAudioError(null);
+
+    try {
+      localStorage.setItem(LAST_POSITION_STORAGE_KEY, '0');
+    } catch (e) {}
+
+    audio.pause();
+    audio.currentTime = 0;
+    audio.src = nextTrack.audio;
+    audio.preload = 'auto';
+    audio.volume = isMutedRef.current ? 0 : volumeRef.current;
+    console.log(`[Audio Player] 3. src set to: ${nextTrack.audio}`);
+
+    // Preload next track metadata for instantaneous transition on next switch
+    const aheadIndex = (newIndex + 1) % playlist.length;
+    const aheadTrack = playlist[aheadIndex];
+    if (aheadTrack && aheadTrack.audio) {
+      const preload = new Audio();
+      preload.src = aheadTrack.audio;
+      preload.preload = 'metadata';
+    }
+
+    if (shouldPlay) {
+      setupAudioContext();
+      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume().catch(() => {});
+      }
+
+      console.log('[Audio Player] 4. play() called');
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            console.log('[Audio Player] 5. play() resolved successfully');
+            setIsPlaying(true);
+            isPlayingRef.current = true;
+            setAudioError(null);
+          })
+          .catch((err) => {
+            console.error('[Audio Player] 5. play() rejected:', err);
+            setAudioError(`Audio file unavailable or blocked: "${nextTrack.title}"`);
+            setIsPlaying(false);
+            isPlayingRef.current = false;
+          });
+      } else {
+        setIsPlaying(true);
+        isPlayingRef.current = true;
+      }
+    } else {
+      setIsPlaying(false);
+      isPlayingRef.current = false;
+    }
+  }, [setupAudioContext]);
+
+  // Audio 'ended' event handler
+  const handleEnded = useCallback(() => {
+    const curIdx = currentTrackIndexRef.current;
+    const curTrack = playlist[curIdx] || playlist[0];
+    console.log(`[Audio Player] 1. ended fired for track: "${curTrack.title}" (index: ${curIdx})`);
+
+    const mode = repeatModeRef.current;
+    const shuffle = isShuffleRef.current;
+
+    // Single track repeat mode
+    if (mode === 'track') {
+      const audio = audioRef.current;
+      if (audio) {
+        console.log(`[Audio Player] Repeat track mode: replaying index ${curIdx}`);
+        audio.currentTime = 0;
+        console.log('[Audio Player] 4. play() called');
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              console.log('[Audio Player] 5. play() resolved successfully');
+              setIsPlaying(true);
+              isPlayingRef.current = true;
+            })
+            .catch((err) => {
+              console.error('[Audio Player] 5. play() rejected:', err);
+            });
+        }
+      }
+      return;
+    }
+
+    // Repeat OFF mode and reached last track
+    if (mode === 'off' && curIdx === playlist.length - 1) {
+      console.log('[Audio Player] Playlist ended (repeat off)');
+      setIsPlaying(false);
+      isPlayingRef.current = false;
+      return;
+    }
+
+    // Calculate next track index
+    let nextIndex;
+    if (shuffle) {
+      nextIndex = Math.floor(Math.random() * playlist.length);
+      if (nextIndex === curIdx && playlist.length > 1) {
+        nextIndex = (curIdx + 1) % playlist.length;
+      }
+    } else {
+      nextIndex = (curIdx + 1) % playlist.length;
+    }
+
+    changeTrack(nextIndex, true);
+  }, [changeTrack]);
+
+  // Audio 'loadedmetadata' event handler
+  const handleLoadedMetadata = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    setDuration(audio.duration || 200);
+    setAudioError(null);
+
+    // ONLY restore saved position on initial app load, NEVER during track transitions
+    if (!initialPositionRestoredRef.current) {
+      initialPositionRestoredRef.current = true;
+      try {
+        const storedPos = localStorage.getItem(LAST_POSITION_STORAGE_KEY);
+        if (storedPos !== null) {
+          const pos = parseFloat(storedPos);
+          if (!isNaN(pos) && pos > 0 && pos < audio.duration) {
+            audio.currentTime = pos;
+            setCurrentTime(pos);
+          }
+        }
+      } catch (e) {}
+    }
+  }, []);
+
+  // Audio 'timeupdate' event handler
+  const handleTimeUpdate = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const curTime = audio.currentTime || 0;
+    setCurrentTime(curTime);
+    try {
+      localStorage.setItem(LAST_POSITION_STORAGE_KEY, curTime.toString());
+    } catch (e) {}
+  }, []);
+
+  // Audio 'error' event handler
+  const handleError = useCallback((e) => {
+    const curIdx = currentTrackIndexRef.current;
+    const track = playlist[curIdx] || playlist[0];
+    console.error(`[Audio Manager] Audio element error for "${track?.title}":`, e);
+    setAudioError(`Audio file unavailable: "${track?.title}"`);
+    setIsPlaying(false);
+    isPlayingRef.current = false;
+  }, []);
+
+  // Keep callback refs updated with the latest function definitions on every render
+  useEffect(() => {
+    handleEndedRef.current = handleEnded;
+    handleLoadedMetadataRef.current = handleLoadedMetadata;
+    handleTimeUpdateRef.current = handleTimeUpdate;
+    handleErrorRef.current = handleError;
+  });
+
+  // Initialize HTML5 Audio Element ONCE on mount
+  useEffect(() => {
+    const audio = new Audio();
+    audio.preload = 'auto';
+    audioRef.current = audio;
+
+    const onTimeUpdate = () => handleTimeUpdateRef.current?.();
+    const onLoadedMetadata = () => handleLoadedMetadataRef.current?.();
+    const onEnded = () => handleEndedRef.current?.();
+    const onError = (e) => handleErrorRef.current?.(e);
+
+    audio.addEventListener('timeupdate', onTimeUpdate);
+    audio.addEventListener('loadedmetadata', onLoadedMetadata);
+    audio.addEventListener('ended', onEnded);
+    audio.addEventListener('error', onError);
+
+    // Eagerly load initial track metadata
+    const initialTrack = playlist[currentTrackIndexRef.current] || playlist[0];
+    if (initialTrack && initialTrack.audio) {
+      audio.src = initialTrack.audio;
+      audio.load();
+    }
+
+    return () => {
+      audio.removeEventListener('timeupdate', onTimeUpdate);
+      audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+      audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('error', onError);
+      audio.pause();
+    };
   }, []);
 
   // Play / Pause Toggle
@@ -214,91 +351,91 @@ export function useAudioPlayer() {
     setupAudioContext();
 
     if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-      audioCtxRef.current.resume();
+      audioCtxRef.current.resume().catch(() => {});
     }
 
-    if (!audioRef.current) return;
+    const audio = audioRef.current;
+    if (!audio) return;
 
     if (isPlaying) {
-      audioRef.current.pause();
+      audio.pause();
       setIsPlaying(false);
+      isPlayingRef.current = false;
     } else {
-      const playPromise = audioRef.current.play();
+      console.log('[Audio Player] 4. play() called from togglePlayPause');
+      const playPromise = audio.play();
       if (playPromise !== undefined) {
         playPromise
           .then(() => {
+            console.log('[Audio Player] 5. play() resolved successfully');
             setIsPlaying(true);
+            isPlayingRef.current = true;
             setAudioError(null);
           })
           .catch((err) => {
-            console.error('[Audio Manager] Play error:', err);
-            setAudioError(`Audio file unavailable: "${currentTrack.title}"`);
+            console.error('[Audio Player] 5. play() rejected:', err);
+            const curIdx = currentTrackIndexRef.current;
+            const track = playlist[curIdx] || playlist[0];
+            setAudioError(`Audio playback failed: "${track?.title}"`);
             setIsPlaying(false);
+            isPlayingRef.current = false;
           });
       } else {
         setIsPlaying(true);
+        isPlayingRef.current = true;
       }
     }
-  }, [isPlaying, currentTrack, setupAudioContext]);
+  }, [isPlaying, setupAudioContext]);
 
-  // Play specific track index
+  // Play specific track index or toggle play/pause if already active
   const playTrack = useCallback((index) => {
     setUserInteracted(true);
-    setupAudioContext();
-    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-      audioCtxRef.current.resume();
-    }
-    setCurrentTrackIndex(index);
-    setIsPlaying(true);
-  }, [setupAudioContext]);
-
-  // Next Track Logic (Handles Shuffle & Repeat modes)
-  const handleNextTrack = useCallback(() => {
-    if (repeatMode === 'track') {
-      if (audioRef.current) {
-        audioRef.current.currentTime = 0;
-        audioRef.current.play();
-      }
+    if (index === currentTrackIndexRef.current && audioRef.current) {
+      togglePlayPause();
       return;
     }
+    changeTrack(index, true);
+  }, [changeTrack, togglePlayPause]);
 
-    if (isShuffle) {
-      let randomIndex = Math.floor(Math.random() * playlist.length);
-      if (randomIndex === currentTrackIndex && playlist.length > 1) {
-        randomIndex = (currentTrackIndex + 1) % playlist.length;
+  // Next Track Logic
+  const nextTrack = useCallback(() => {
+    const curIdx = currentTrackIndexRef.current;
+    let nextIndex;
+    if (isShuffleRef.current) {
+      nextIndex = Math.floor(Math.random() * playlist.length);
+      if (nextIndex === curIdx && playlist.length > 1) {
+        nextIndex = (curIdx + 1) % playlist.length;
       }
-      setCurrentTrackIndex(randomIndex);
     } else {
-      setCurrentTrackIndex((prev) => (prev + 1) % playlist.length);
+      nextIndex = (curIdx + 1) % playlist.length;
     }
-    setIsPlaying(true);
-  }, [repeatMode, isShuffle, currentTrackIndex]);
+    changeTrack(nextIndex, isPlayingRef.current || true);
+  }, [changeTrack]);
 
   // Previous Track Logic
   const handlePreviousTrack = useCallback(() => {
-    if (currentTime > 3 && audioRef.current) {
-      audioRef.current.currentTime = 0;
+    const audio = audioRef.current;
+    if (audio && audio.currentTime > 3) {
+      audio.currentTime = 0;
+      setCurrentTime(0);
       return;
     }
-    setCurrentTrackIndex((prev) => (prev - 1 + playlist.length) % playlist.length);
-    setIsPlaying(true);
-  }, [currentTime]);
+    const curIdx = currentTrackIndexRef.current;
+    const prevIndex = (curIdx - 1 + playlist.length) % playlist.length;
+    changeTrack(prevIndex, isPlayingRef.current || true);
+  }, [changeTrack]);
 
-  // Seek
+  // Seek to position
   const seekTo = useCallback((seconds) => {
-    if (!audioRef.current) return;
     const audio = audioRef.current;
+    if (!audio) return;
     const clampedTime = Math.max(0, Math.min(seconds, audio.duration || Infinity));
     
-    // readyState >= 1 means metadata is loaded and seeking is safe
     if (audio.readyState >= 1) {
       try {
         audio.currentTime = clampedTime;
-      } catch (e) {
-        // Some browsers throw on invalid seeks — ignore
-      }
+      } catch (e) {}
     } else {
-      // Audio not ready yet — wait for metadata then seek
       const onReady = () => {
         try {
           audio.currentTime = Math.min(clampedTime, audio.duration || clampedTime);
@@ -308,6 +445,9 @@ export function useAudioPlayer() {
       audio.addEventListener('loadedmetadata', onReady);
     }
     setCurrentTime(clampedTime);
+    try {
+      localStorage.setItem(LAST_POSITION_STORAGE_KEY, clampedTime.toString());
+    } catch (e) {}
   }, []);
 
   // Set Volume
@@ -335,6 +475,21 @@ export function useAudioPlayer() {
     });
   }, []);
 
+  // Save Favorites to localStorage
+  const toggleFavorite = useCallback((songId) => {
+    setFavorites((prev) => {
+      const updated = prev.includes(songId)
+        ? prev.filter((id) => id !== songId)
+        : [...prev, songId];
+      try {
+        localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.warn('[Audio Manager] localStorage error:', e);
+      }
+      return updated;
+    });
+  }, []);
+
   return {
     currentTrackIndex,
     currentTrack,
@@ -351,7 +506,7 @@ export function useAudioPlayer() {
     analyser: analyserRef.current,
     togglePlayPause,
     playTrack,
-    nextTrack: handleNextTrack,
+    nextTrack,
     previousTrack: handlePreviousTrack,
     seekTo,
     setVolumeLevel,

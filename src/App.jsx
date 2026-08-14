@@ -36,12 +36,13 @@ export default function App() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
-  // Toast notifier
+  // Toast notifier with safe auto-clear
   const showToast = useCallback((msg) => {
     setToastMessage(msg);
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       setToastMessage(null);
     }, 3200);
+    return () => clearTimeout(timer);
   }, []);
 
   // Display toast when audio file is unavailable
@@ -51,8 +52,7 @@ export default function App() {
     }
   }, [audioError, showToast]);
 
-
-  // Keyboard accessibility controls
+  // Keyboard accessibility controls (Desktop shortcuts)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
@@ -84,19 +84,24 @@ export default function App() {
   }, [togglePlayPause, nextTrack, previousTrack, toggleMute, isPlaying, isMuted, showToast]);
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden text-[#F5E6C8] selection:bg-[#D49A32] selection:text-black">
+    <div className="relative min-h-screen min-h-[100dvh] w-full max-w-full overflow-x-hidden text-[#F5E6C8] selection:bg-[#D49A32] selection:text-black">
       
-      {/* 1. STATIC FULLSCREEN KISHORE KUMAR ARTWORK COLLAGE BACKGROUND */}
+
+
+      {/* 2. FULLSCREEN KISHORE KUMAR ARTWORK COLLAGE BACKGROUND */}
       <div className="hero-background-wrapper">
-        <img
-          src="/assets/hero-bg.jpg"
-          alt="Kishore Kumar Background Collage"
-          className="hero-bg-img"
-        />
+        <picture>
+          <source media="(max-width: 640px)" srcSet="/assets/hero-bg-mobile.jpg" />
+          <img
+            src="/assets/hero-bg.jpg"
+            alt="Kishore Kumar Background Collage"
+            className="hero-bg-img"
+            loading="eager"
+          />
+        </picture>
       </div>
 
-
-      {/* 4. FLOATING GLASS MUSIC PLAYER CARD AT BOTTOM */}
+      {/* 3. FLOATING GLASS MUSIC PLAYER CARD AT BOTTOM */}
       <FloatingPlayer
         currentTrack={currentTrack}
         isPlaying={isPlaying}
@@ -107,7 +112,6 @@ export default function App() {
         isShuffle={isShuffle}
         repeatMode={repeatMode}
         favorites={favorites}
-        analyser={analyser}
         onTogglePlayPause={togglePlayPause}
         onNext={nextTrack}
         onPrevious={previousTrack}
@@ -120,7 +124,7 @@ export default function App() {
         onOpenPlaylist={() => setIsPlaylistOpen(true)}
       />
 
-      {/* 5. PLAYLIST DRAWER */}
+      {/* 4. PLAYLIST DRAWER */}
       <PlaylistDrawer
         isOpen={isPlaylistOpen}
         onClose={() => setIsPlaylistOpen(false)}
@@ -131,23 +135,23 @@ export default function App() {
         favorites={favorites}
       />
 
-      {/* 7. SEARCH MODAL */}
+      {/* 5. SEARCH MODAL */}
       <SearchModal
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
         onPlayTrack={playTrack}
       />
 
-      {/* 8. SHARE & INSTAGRAM FLOATING CONTROLS */}
+      {/* 6. SHARE & INSTAGRAM FLOATING CONTROLS (DESKTOP) */}
       <SocialFloatingControls
         onShowToast={showToast}
         instagramUrl="https://www.instagram.com/tushal_jadhav_123/?hl=en"
       />
 
-      {/* 9. TOAST NOTIFICATIONS */}
+      {/* 7. TOAST NOTIFICATIONS (Positioned safely above bottom player) */}
       {toastMessage && (
-        <div className="toast-container animate-in fade-in slide-in-from-bottom-3 duration-200">
-          <div className="glass-pill px-5 py-2.5 text-xs font-semibold text-[#F5E6C8] border border-[#D49A32]/50 shadow-2xl flex items-center gap-2">
+        <div className="fixed bottom-[max(5.75rem,calc(env(safe-area-inset-bottom)+5rem))] sm:bottom-28 left-1/2 -translate-x-1/2 z-50 pointer-events-none animate-in fade-in slide-in-from-bottom-2 duration-200 px-4 w-auto max-w-[90vw]">
+          <div className="glass-pill px-4 py-2 text-xs font-semibold text-[#F5E6C8] border border-[#D49A32]/60 shadow-2xl flex items-center justify-center gap-2 text-center">
             <span>{toastMessage}</span>
           </div>
         </div>
